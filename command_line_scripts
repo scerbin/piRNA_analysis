@@ -1,0 +1,128 @@
+######## Merge Files ########
+
+#concatenate files
+
+cat n_*_1_ATCACG.fastq.gz > JB13_R1.fastq.gz #Read 1 only
+
+## cat n_*_1_ATCACG.fastq.gz > SC13_R1.fasta.gz
+## cat n_*_1_CGATGT.fastq.gz > SC13_R2.fasta.gz
+## cat n_*_1_TTAGGC.fastq.gz > SC13_R3.fasta.gz
+
+
+######## Trim Sequences ########
+
+#Trim 3' Adapter
+
+conda activate cutadaptenv
+
+#just trim 3' adapter
+cutadapt -a TGGAATTCTCGGGTGCCAAGG -o n_1_1_ATCACG.trim.fastq n_1_1_ATCACG.fastq
+
+#trim 3' adapter, remove reads less than 23 and more than 30 and remove reads without adapter
+
+cutadapt -a TGGAATTCTCGGGTGCCAAGG -m 23 -M 30 --discard-untrimmed -o n_1_1_ATCACG.trim.23.30.fastq n_1_1_ATCACG.fastq
+
+
+conda deactivate
+
+Conda activate fqc
+
+fastqc n_1_1_ATCACG.trim.23.30.fastq 
+
+conda deactivate
+
+######### Construct non coding RNA file ########
+
+# this only needs to be done once
+
+# filter based on rRNA, tRNA, miRNA, etc.
+# Download from flybase or other database
+
+cat *.fasta > ncRNA.plus.fasta
+
+#fuse fasta sequences for improved filter to avoid edge effects
+
+
+https://www.biostars.org/p/153087/
+perl -n  -e 'print if 1 == $. || ! m/^>/'  test.fa > out.fa
+
+#Open in word and remove paragraph symbols to generate:
+
+full.merged.ncRNA.plus.fa
+
+
+
+######## Align reads to non coding RNA file ######
+
+
+# Map to Oligos,miRNA,ncRNA,miscRNA,tRNA
+
+#Install conda environment with SAMtools and BWA and bowtie
+
+conda create -n align samtools bwa bowtie2
+
+conda activate align
+
+bwa index full.merged.ncRNA.plus.fa
+
+
+for f in *.read.file.fastq; do bwa aln full.merged.ncRNA.plus.fa $f > $f.sai; bwa samse full.merged.ncRNA.plus.fa $f.sai $f > $f.sam; done
+
+
+# Extract reads unmapped to ncRNA fasta
+
+for f in *.sam; do samtools fastq -f 4 $f > $f.ncRNA.filter.fastq
+
+#fastqc
+
+for f in *filter.fastq; do fastqc $f; done 
+
+
+###### Map reads to genome #######
+
+
+#map to genome
+
+bwa index dmel-all-chromosome-r6.32.fasta
+
+for f in *.fastq; do bwa aln dmel-all-chromosome-r6.32.fasta $f > $f.sai; bwa samse mel-all-chromosome-r6.32.fasta $f.sai $f > $f.sam; done
+
+#convert to bam
+
+for f in *.sam; do samtools view -Sb $f > $f.bam; done
+for f in *.sam.bam; do samtools sort $f > $f.bam.sorted.bam; done
+for f in *.sorted.bam; do samtools index $f;done
+
+#made smaller bam, full span
+
+Coordinates release 6.32 flybase
+
+#Use emacs to make my region of interest bed file
+#my_region.fullspan.bed
+
+1R  34897123  34679215  my_region 0 +
+
+#region of interest
+
+Samtools view - b file.merge.sorted.bam "1R:34897123-34679215" > reads.merge.region.bam
+
+#reverse region of interest
+
+ samtools view -b rev.merge.sorted.bam "1R:34897123-34679215" > Rev.merge.region.bam
+
+#full span coverage for visualization. + and - strand
+
+conda create -n bedtools bedtools
+conda activate bedtools
+
+for f in *.bam; do bedtools coverage -a my_region.fullspan.bed -b $f -bed -d -s > $f.pos.tsv; done
+for f in *.bam; do bedtools coverage -a my_region.fullspan.bed -b $f -bed -d -S > $f.neg.tsv; done
+
+
+###### Visualize in R #######
+
+my_region.fullspan.bed 34897123 34679215: Full span of region
+
+#modify coordinates for regions of interest
+
+# code has been adapted and cleaned up when using.
