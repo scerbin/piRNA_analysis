@@ -125,4 +125,15 @@ my_region.fullspan.bed 34897123 34679215: Full span of region
 
 #modify coordinates for regions of interest
 
+****quality and sequence stats from .bam with fastqc****
+
+conda activate fqc
+fastqc final.file.bam 
+
+#or:
+
+samtools flagstat del.het.all.bam.sorted.bam  
+
+
+
 # code has been adapted and cleaned up when using.
